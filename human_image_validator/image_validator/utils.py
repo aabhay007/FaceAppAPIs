@@ -7,6 +7,7 @@ import face_recognition
 import io
 import logging
 import traceback
+from .models import ValidatedImage
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -49,8 +50,6 @@ def get_face_encoding(image_array):
 def check_duplicate_face(new_encoding, threshold=0.6):
     """Check if face already exists in database"""
     try:
-        from .models import ValidatedImage
-        
         if new_encoding is None:
             logger.info("No encoding provided for duplicate check")
             return False, None
