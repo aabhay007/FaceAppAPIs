@@ -113,7 +113,8 @@ def validate_human_image(image_file):
         is_duplicate, duplicate_image = check_duplicate_face(face_encoding)
         if is_duplicate:
             logger.info(f"Duplicate face found with image ID: {duplicate_image.id}")
-            return False, f"Duplicate face found! This person was already uploaded (Image ID: {duplicate_image.id})", None
+            return False, f"Duplicate face found! This person was already uploaded", None
+            # return False, f"Duplicate face found! This person was already uploaded (Image ID: {duplicate_image.id})", None
         
         logger.info("Image validation successful")
         return True, "Valid human image detected", face_encoding
