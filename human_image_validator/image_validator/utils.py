@@ -1,4 +1,3 @@
-# utils.py
 import cv2
 import mediapipe as mp
 import numpy as np
@@ -12,6 +11,51 @@ from .models import ValidatedImage
 # Set up logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+def detect_animation_or_sketch(image_array):
+    """
+    Detect if image is likely an animation, sketch, or cartoon
+    Returns True if artificial image detected, False if likely real photo
+    """
+    try:
+        # Convert to grayscale
+        gray = cv2.cvtColor(image_array, cv2.COLOR_RGB2GRAY)
+        
+        # 1. Edge detection check
+        edges = cv2.Canny(gray, 100, 200)
+        edge_ratio = np.count_nonzero(edges) / edges.size
+        
+        # Strong edges suggest sketch/cartoon
+        if edge_ratio > 0.1:  # Threshold determined empirically
+            logger.info(f"High edge ratio detected: {edge_ratio}")
+            return True
+            
+        # 2. Color diversity check
+        unique_colors = np.unique(image_array.reshape(-1, 3), axis=0).shape[0]
+        total_pixels = image_array.shape[0] * image_array.shape[1]
+        color_ratio = unique_colors / total_pixels
+        
+        # Limited color palette suggests animation
+        if color_ratio < 0.01:  # Threshold determined empirically
+            logger.info(f"Low color diversity detected: {color_ratio}")
+            return True
+            
+        # 3. Texture analysis
+        texture_kernel = np.ones((3,3), np.float32) / 9
+        blurred = cv2.filter2D(gray, -1, texture_kernel)
+        texture_variance = np.var(np.abs(gray - blurred))
+        
+        # Low texture variance suggests artificial image
+        if texture_variance < 100:  # Threshold determined empirically
+            logger.info(f"Low texture variance detected: {texture_variance}")
+            return True
+            
+        return False
+        
+    except Exception as e:
+        logger.error(f"Error in detect_animation_or_sketch: {str(e)}")
+        logger.error(traceback.format_exc())
+        return True  # Fail safe: reject if detection fails
 
 def get_face_encoding(image_array):
     """Get face encoding using face_recognition library"""
@@ -76,7 +120,7 @@ def check_duplicate_face(new_encoding, threshold=0.6):
         return False, None
 
 def validate_human_image(image_file):
-    """Validate if image contains a human face and check for duplicates"""
+    """Validate if image contains a real human face and check for duplicates"""
     mp_face_detection = None
     try:
         # Initialize MediaPipe Face Detection
@@ -89,6 +133,11 @@ def validate_human_image(image_file):
         image = Image.open(image_file)
         image = image.convert('RGB')
         img_array = np.array(image)
+        
+        # Check for animation/sketch
+        if detect_animation_or_sketch(img_array):
+            logger.info("Animated or sketched face detected")
+            return False, "Please upload a real photo. Animations, sketches, and cartoons are not allowed.", None
         
         # Process with MediaPipe
         results = mp_face_detection.process(img_array)
@@ -113,8 +162,7 @@ def validate_human_image(image_file):
         is_duplicate, duplicate_image = check_duplicate_face(face_encoding)
         if is_duplicate:
             logger.info(f"Duplicate face found with image ID: {duplicate_image.id}")
-            return False, f"Duplicate face found! This person was already uploaded", None
-            # return False, f"Duplicate face found! This person was already uploaded (Image ID: {duplicate_image.id})", None
+            return False, "Duplicate face found! This person was already uploaded", None
         
         logger.info("Image validation successful")
         return True, "Valid human image detected", face_encoding
